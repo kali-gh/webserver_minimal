@@ -24,6 +24,7 @@ sudo apt install python3-pip python3-virtualenv nginx curl
 sudo apt install git-all
 sudo apt install openssh-server
 sudo apt install nginx
+sudo apt install gunicorn3
 ```
 
 ### Setting up an ssh keypair
@@ -42,5 +43,126 @@ You can do this either with git or with an ssh copy of the zipped files
 scp -i ~/.ssh/<mykeypairfile>.pem  webserver-minimal.zip ubuntu@XYZ:/home/ubuntu/
 ```
 
+Directory structure on the EC2
+```
+/home/ubuntu/
+/home/ubuntu/app < webserver files located here
+```
 
 
+### Set up local webserver on EC2
+
+To test the server works locally you can do from within the app directory:
+
+Set up the python enviornment with uvicorn and fastapi (see requirements.txt file)
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+
+Start the server. This just calls the app which deployed on /api/test.  Note: this runs : uvicorn app:app --reload
+```
+./run.sh
+```
+
+In another terminal check you get the response
+```
+ curl http://127.0.0.1:8000/api/test 
+```
+
+You should see
+```
+"Hello World!"
+```
+
+### Serve the application from gunicorn
+
+
+We need a gunicorn service to serve our application. To do this, run this command
+
+First create the socket
+
+``` 
+sudo vim /etc/systemd/system/gunicorn.socket
+```
+
+Paste the following
+``` 
+[Unit]
+Description=gunicorn socket
+
+[Socket]
+ListenStream=/run/gunicorn.sock
+
+[Install]
+WantedBy=sockets.target
+```
+
+Start the socket
+
+```
+sudo systemctl start gunicorn.socket
+```
+
+Next create the service: 
+```
+sudo vim /etc/systemd/system/gunicorn.service
+```
+
+and paste the following
+
+```
+[Unit]
+Description=gunicorn daemon
+Requires=gunicorn.socket
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/app/
+ExecStart=/home/ubuntu/app/venv/bin/gunicorn \
+          --access-logfile - \
+          --workers 5 \
+          --bind unix:/run/gunicorn.sock \
+          --worker-class uvicorn.workers.UvicornWorker \
+          app:app
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Now run these commands to serve the application
+```
+sudo systemctl restart gunicorn
+```
+
+You should be able to run the status and see the service up
+```
+sudo systemctl status gunicorn
+```
+
+### Set up nginx
+```
+sudo vim /etc/nginx/sites-available/default
+```
+
+Add the following in the server below location /
+
+```
+location /api {
+        proxy_pass http://unix:/run/gunicorn.sock;
+}
+```
+
+you should now be able to run
+```
+curl http://localhost/api/test
+```
+
+You can verify the logs located at 
+```
+/var/log/nginx/access.log
+```
