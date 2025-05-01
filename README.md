@@ -1,5 +1,11 @@
-### What is this?
-This repo shows how to set up a minimal FastAPI webserver on Amazon EC2
+### Overview
+This repo shows how to set up a minimal FastAPI (async) webserver on Amazon EC2. We show all the steps needed to get a "Hello World" async response from the server, including the following components:
+
+- A simple "Hello World" FastAPI application in python
+- A gunicorn service running on the server
+- An nginx reverse proxy that routes requests to the gunicorn service.
+
+Combined these elements allow the server to respond asynchronously to requests, following best practices to manage load. The serve can optionally sit behind a load balancer (this is not shown here).
 
 ### Overview
 1. Set up the EC2 machine
